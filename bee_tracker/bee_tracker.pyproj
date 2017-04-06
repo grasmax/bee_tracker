@@ -13,7 +13,7 @@
     <Name>bee_tracker</Name>
     <RootNamespace>bee_tracker</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>-v "D:/Videos/vi_0039_20170314_121948.mp4" -f 40 -roix 150 -roiw 750 -roiy 320 -roih 200</CommandLineArguments>
+    <CommandLineArguments>-v "C:\dev_priv\beetracker\videos\vi_0036_20170314_121739.mp4" -f 90</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

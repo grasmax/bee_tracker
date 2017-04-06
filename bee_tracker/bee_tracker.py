@@ -37,10 +37,11 @@ def main():
     sleep(1)
 
     # Initialize frame data object (used to share video data between threads)
-    objFrameData = frameData(args)
+    listFrameData = [ frameData(args) for i in range(2)]
+ 
 
     # Start the thread which handles the webcam stream
-    wst = WebcamServerThread(args, objFrameData)
+    wst = WebcamServerThread(args, listFrameData)
     wst.start()
 
     # Initialize the value list object (used to share measurement values between threads)
@@ -56,7 +57,7 @@ def main():
     #dbt.start()
 
     # Start the image processing
-    ImageProcessor.processVideoStream(objFrameData, valueList, videoSource)
+    ImageProcessor.processVideoStream(listFrameData, valueList, videoSource)
 
 
 ####
