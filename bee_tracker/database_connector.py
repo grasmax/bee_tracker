@@ -30,7 +30,7 @@ class DatabaseConnectionThread(threading.Thread):
     def run(self):
 
         if self.system == "Windows":
-            self.dbConnector = sqlite3.connect('//192.168.2.6/pishare/' + self.dbName)
+            self.dbConnector = sqlite3.connect('//192.168.2.6/beetracker/' + self.dbName)
         elif self.system == "Raspi":
             self.dbConnector = sqlite3.connect('/home/pi/shared/'+ self.dbName)
 

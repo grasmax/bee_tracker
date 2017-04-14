@@ -45,7 +45,10 @@ class frameData():
     moments = None
     centers = None
 
-    status = 0
+    #wird zur static-Member!! status = 0
+ 
+    terminateWebThread = 0   
+    evWebThreadTerminate = threading.Event()
 
     def __init__(self, args):
 
@@ -53,6 +56,9 @@ class frameData():
         self.fps = args["fps"]
         self.system = args["system"]
         self.x_lock = threading.Lock()
+        self.imageCount = 0
+        self.webCount = 0
+        self.status = 0
 
     def SetStatus( self, newStatus):
         self.x_lock.acquire()
@@ -67,11 +73,16 @@ class ImageProcessor():
     @staticmethod
     def ProcessVideoFrame(objFrameData, valueList, videoSource, bgSubtractor):
 
+        objFrameData.SetStatus(1)
+
         # Read video data from camera / video source
         if objFrameData.system == "Windows":
             rc,objFrameData.rawFrame = videoSource.read()
         elif objFrameData.system == "Raspi":
             objFrameData.rawFrame = videoSource.read()
+
+        if objFrameData.rawFrame == None:
+            return 1
 
         # Cut video frame to size of region of interest (roi)
         objFrameData.roiFrame = objFrameData.rawFrame[objFrameData.roiRect.y1 : objFrameData.roiRect.y2, objFrameData.roiRect.x1 : objFrameData.roiRect.x2]
@@ -119,7 +130,13 @@ class ImageProcessor():
         # Calculate the sliding average of the mean value of the roi (indicator for the brightness in the image)
         valueList["light"] = ((valueList["light"] * 1023) / 1024) + (cv2.mean(objFrameData.roiFrameGray)[0] / 1024)
 
-        objFrameData.SetStatus(1)
+        objFrameData.imageCount = objFrameData.imageCount + 1
+        valueList["imagecount"] = objFrameData.imageCount
+        valueList["webcount"] = objFrameData.webCount
+
+        objFrameData.SetStatus(2)
+        
+        return 0
 
     @staticmethod
     def processVideoStream(objFrameData, valueList, videoSource):
@@ -131,13 +148,16 @@ class ImageProcessor():
 
         while True:
 
+            
             status = objFrameData[0].status
-            if status == 0:
-               ImageProcessor.ProcessVideoFrame(objFrameData[0], valueList, videoSource, bgSubtractor)
+            if status == 0 or status == 2:
+               if ImageProcessor.ProcessVideoFrame(objFrameData[0], valueList, videoSource, bgSubtractor) == 1:
+                   break
 
             status = objFrameData[1].status
-            if status == 0:
-               ImageProcessor.ProcessVideoFrame(objFrameData[1], valueList, videoSource, bgSubtractor)
+            if status == 0 or status == 2:
+               if ImageProcessor.ProcessVideoFrame(objFrameData[1], valueList, videoSource, bgSubtractor) == 1:
+                    break
 
 
             ch = 0xFF & cv2.waitKey(5)

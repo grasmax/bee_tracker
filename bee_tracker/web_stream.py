@@ -16,6 +16,9 @@ from image_processor import roiRectangle
 class CamHandler(BaseHTTPRequestHandler):
 
     def processImage(self, frameData):
+
+        frameData.SetStatus(3)
+
         # Get the raw video frame and convert it to rgb
         img = cv2.cvtColor(frameData.rawFrame,cv2.COLOR_BGR2RGB)
                     
@@ -38,8 +41,10 @@ class CamHandler(BaseHTTPRequestHandler):
         self.send_header('Content-length',str(tmpFile.len))
         self.end_headers()
         self.wfile.write( tmpFile.getvalue() )
-        time.sleep(1/frameDataRef[0].fps)
+        
+        #time.sleep(1/frameDataRef[0].fps)
 
+        frameData.webCount = frameData.webCount + 1
         frameData.SetStatus(0)
 
     def do_GET(self):
@@ -50,15 +55,22 @@ class CamHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type','multipart/x-mixed-replace; boundary=--jpgboundary')
             self.end_headers()
 
+            frameDataRef[0].imageCount = 0
+            frameDataRef[1].imageCount = 0 
             while True:
                 try:
+                    
                     status = frameDataRef[0].status
-                    if status == 1:
+                    if status == 2:
                         CamHandler.processImage(self, frameDataRef[0])
 
+
                     status = frameDataRef[1].status
-                    if status == 1:
+                    if status == 2:
                         CamHandler.processImage(self, frameDataRef[1])
+  
+                    if frameData.terminateWebThread == 1:
+                        break;
 
                 except KeyboardInterrupt:
                     break
@@ -100,9 +112,14 @@ class WebcamServerThread(threading.Thread):
         try:
             global ip
             ip = get_ip_address()
+            print(ip)
+            
             server = ThreadedHTTPServer((ip, 8080), CamHandler)
+            
             print "server started"
             server.serve_forever()
+
+            
 
         except KeyboardInterrupt:
             capture.release()
