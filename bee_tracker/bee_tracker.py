@@ -11,6 +11,8 @@ from video_source import VideoSource
 from web_stream import WebcamServerThread
 from image_processor import frameData
 from image_processor import ImageProcessor
+from image_processor import ImgThread
+from image_processor import DrawImgThread
 from database_connector import DatabaseConnectionThread
 
 def main():
@@ -37,12 +39,14 @@ def main():
     sleep(1)
 
     # Initialize frame data object (used to share video data between threads)
-    listFrameData = [ frameData(args) for i in range(2)]
- 
+    listFrameData = [ frameData(args, i) for i in range(10)]
+
+    threads = [] 
     
     # Start the thread which handles the webcam stream
     wst = WebcamServerThread(args, listFrameData)
     wst.start()
+    threads += [wst] 
 
     # Initialize the value list object (used to share measurement values between threads)
     valueList = {
@@ -59,14 +63,20 @@ def main():
     #dbt.start()
 
     # Start the image processing
-    ImageProcessor.processVideoStream(listFrameData, valueList, videoSource)
-    frameData.terminateWebThread = 1
-    #frameData.evWebThreadTerminate.wait()
+    #ImageProcessor.processVideoStream(listFrameData, valueList, videoSource)
+    #frameData.terminateWebThread = 1
+    ##frameData.evWebThreadTerminate.wait()
+    it =  ImgThread(listFrameData, valueList, videoSource)
+    it.start()
+    threads += [it] 
 
-    print (listFrameData[0].imageCount)
-    print (listFrameData[1].imageCount)
-    print ( listFrameData[0].webCount)
-    print ( listFrameData[1].webCount)
+    dt =  DrawImgThread(listFrameData, valueList, videoSource)
+    dt.start()
+    threads += [dt] 
+
+    for x in threads: 
+        x.join()
+
 
     videoSource.release()
     

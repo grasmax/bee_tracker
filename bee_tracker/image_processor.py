@@ -7,6 +7,15 @@ import threading
 
 from time import sleep
 
+class EnumStatus():
+    empty            = "empty"
+    calc_beg         = "calc_beg"
+    calc_end         = "calc_end"
+    addframes_beg    = "addframes_beg"
+    addframes_end    = "addframes_end"
+    web_beg          = "web_beg"
+    web_end          = "web_end"
+    
 class roiRectangle():
 
     x1 = 0
@@ -50,20 +59,58 @@ class frameData():
     terminateWebThread = 0   
     evWebThreadTerminate = threading.Event()
 
-    def __init__(self, args):
+    countCalc = 0
+    countDraw = 0
+    countWeb = 0
 
+    def __init__(self, args, nr):
+        self.nr = nr + 1   
         self.roiRect = roiRectangle(args)
         self.fps = args["fps"]
         self.system = args["system"]
         self.x_lock = threading.Lock()
-        self.imageCount = 0
-        self.webCount = 0
-        self.status = 0
+        self.img = None
+        self.status = EnumStatus.empty
 
     def SetStatus( self, newStatus):
         self.x_lock.acquire()
-        self.status = newStatus
+
+        ret = 0
+        if newStatus == EnumStatus.calc_beg:
+            if self.status == EnumStatus.empty or self.status == EnumStatus.calc_beg or self.status == EnumStatus.calc_end or self.status == EnumStatus.addframes_end:
+                self.status = newStatus
+                ret = self.nr
+
+        elif newStatus == EnumStatus.calc_end:
+            if self.status == EnumStatus.calc_beg:
+                self.status = newStatus
+                frameData.countCalc = frameData.countCalc + 1
+                ret = self.nr
+
+        elif newStatus == EnumStatus.addframes_beg:
+            if self.status == EnumStatus.calc_end:
+                self.status = newStatus
+                ret = self.nr
+
+        elif newStatus == EnumStatus.addframes_end:
+            if self.status == EnumStatus.addframes_beg:
+                self.status = newStatus
+                frameData.countDraw = frameData.countDraw + 1
+                ret = self.nr
+
+        elif newStatus == EnumStatus.web_beg:
+            if self.status == EnumStatus.addframes_end:
+                self.status = newStatus
+                ret = self.nr
+
+        elif newStatus == EnumStatus.web_end:
+            if self.status == EnumStatus.web_beg:
+                self.status = EnumStatus.empty
+                frameData.countWeb = frameData.countWeb + 1
+                ret = self.nr
+
         self.x_lock.release()
+        return ret
         
 
 
@@ -73,7 +120,10 @@ class ImageProcessor():
     @staticmethod
     def ProcessVideoFrame(objFrameData, valueList, videoSource, bgSubtractor):
 
-        objFrameData.SetStatus(1)
+        nr = objFrameData.SetStatus(EnumStatus.calc_beg)
+        if nr == 0:
+            return
+
 
         # Read video data from camera / video source
         if objFrameData.system == "Windows":
@@ -130,11 +180,10 @@ class ImageProcessor():
         # Calculate the sliding average of the mean value of the roi (indicator for the brightness in the image)
         valueList["light"] = ((valueList["light"] * 1023) / 1024) + (cv2.mean(objFrameData.roiFrameGray)[0] / 1024)
 
-        objFrameData.imageCount = objFrameData.imageCount + 1
-        valueList["imagecount"] = objFrameData.imageCount
-        valueList["webcount"] = objFrameData.webCount
+        valueList["imagecount"] = frameData.countCalc
+        valueList["webcount"] = frameData.countWeb
 
-        objFrameData.SetStatus(2)
+        objFrameData.SetStatus(EnumStatus.calc_end)
         
         return 0
 
@@ -147,18 +196,9 @@ class ImageProcessor():
         bgSubtractor = cv2.createBackgroundSubtractorMOG2(bgsub_hist, bgsub_thresh, True)
 
         while True:
-
-            
-            status = objFrameData[0].status
-            if status == 0 or status == 2:
-               if ImageProcessor.ProcessVideoFrame(objFrameData[0], valueList, videoSource, bgSubtractor) == 1:
-                   break
-
-            status = objFrameData[1].status
-            if status == 0 or status == 2:
-               if ImageProcessor.ProcessVideoFrame(objFrameData[1], valueList, videoSource, bgSubtractor) == 1:
+            for fdr in objFrameData: 
+                if ImageProcessor.ProcessVideoFrame(fdr, valueList, videoSource, bgSubtractor) == 1:
                     break
-
 
             ch = 0xFF & cv2.waitKey(5)
             if ch == 27:
@@ -169,3 +209,43 @@ class ImageProcessor():
 
             #sleep(1/objFrameData.fps)
 
+
+class ImgThread(threading.Thread): 
+  def __init__(self, objFrameData, valueList, videoSource): 
+    threading.Thread.__init__(self) 
+    self.objFrameData = objFrameData
+    self.valueList = valueList
+    self.videoSource = videoSource
+ 
+  def run(self): 
+    ImageProcessor.processVideoStream(self.objFrameData, self.valueList, self.videoSource)
+
+
+
+class DrawImgThread(threading.Thread): 
+  def __init__(self, objFrameData, valueList, videoSource): 
+    threading.Thread.__init__(self) 
+    self.objFrameData = objFrameData
+    self.valueList = valueList
+    self.videoSource = videoSource
+ 
+  def run(self): 
+    while True:
+        for fdr in self.objFrameData: 
+            nr = fdr.SetStatus(EnumStatus.addframes_beg)
+            if nr > 0:
+                # Get the raw video frame and convert it to rgb
+                fdr.img = cv2.cvtColor(fdr.rawFrame,cv2.COLOR_BGR2RGB)
+                    
+                # Draw the contours of the found objects into the frame
+                cv2.drawContours(fdr.img, fdr.contours, -1, (0,255,0), 1, 8, None, 2, (fdr.roiRect.x1, fdr.roiRect.y1))
+                    
+                # Draw the region of interest to show where it is in the raw frame
+                cv2.rectangle(fdr.img, (fdr.roiRect.x1, fdr.roiRect.y1), (fdr.roiRect.x2, fdr.roiRect.y2), (255, 0, 0))
+
+                # Draw small circles to indicate those contours which are detected as bees
+                for center in fdr.centers:
+                    cv2.circle(fdr.img, (fdr.roiRect.x1 + center[0], fdr.roiRect.y1 + center[1]), 2, (255,255,255), -1) 
+
+
+                fdr.SetStatus(EnumStatus.addframes_end)
