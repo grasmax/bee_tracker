@@ -58,14 +58,10 @@ def main():
         'webcount': 0
         }
 
-    # Start the thread which handles the database connection
-    #dbt = DatabaseConnectionThread(args["system"], "bee_activity", "beeactivity_2", valueList, 30) 
-    #dbt.start()
+    dbt = DatabaseConnectionThread(args["system"], "bee_activity", "beeactivity_2", valueList, 30) 
+    dbt.start()
+    threads += [dbt] 
 
-    # Start the image processing
-    #ImageProcessor.processVideoStream(listFrameData, valueList, videoSource)
-    #frameData.terminateWebThread = 1
-    ##frameData.evWebThreadTerminate.wait()
     it =  ImgThread(listFrameData, valueList, videoSource)
     it.start()
     threads += [it] 
