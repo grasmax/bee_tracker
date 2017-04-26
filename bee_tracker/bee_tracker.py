@@ -66,9 +66,9 @@ def main():
     it.start()
     threads += [it] 
 
-    dt =  DrawImgThread(listFrameData, valueList, videoSource)
-    dt.start()
-    threads += [dt] 
+    # dt =  DrawImgThread(listFrameData, valueList, videoSource)
+    # dt.start()
+    # threads += [dt] 
 
     for x in threads: 
         x.join()

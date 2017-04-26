@@ -16,13 +16,32 @@ from image_processor import roiRectangle
 
 class CamHandler(BaseHTTPRequestHandler):
 
-    def processImage(self, frameData):
+    def processImage(self, fdr):
 
-        nr = frameData.SetStatus(EnumStatus.web_beg)
+        nr = fdr.SetStatus(EnumStatus.web_beg)
         if nr == 0:
             return
 
-        jpg = Image.fromarray( frameData.img)
+        #dieser Teil koennte vom DrawImgThread erledigt werden {
+
+
+        # Get the raw video frame and convert it to rgb
+        fdr.img = cv2.cvtColor(fdr.rawFrame,cv2.COLOR_BGR2RGB)
+                    
+        # Draw the contours of the found objects into the frame
+        cv2.drawContours(fdr.img, fdr.contours, -1, (0,255,0), 1, 8, None, 2, (fdr.roiRect.x1, fdr.roiRect.y1))
+                    
+        # Draw the region of interest to show where it is in the raw frame
+        cv2.rectangle(fdr.img, (fdr.roiRect.x1, fdr.roiRect.y1), (fdr.roiRect.x2, fdr.roiRect.y2), (255, 0, 0))
+
+        # Draw small circles to indicate those contours which are detected as bees
+        for center in fdr.centers:
+            cv2.circle(fdr.img, (fdr.roiRect.x1 + center[0], fdr.roiRect.y1 + center[1]), 2, (255,255,255), -1) 
+
+        #dieser Teil koennte vom DrawImgThread erledigt werden }
+
+
+        jpg = Image.fromarray( fdr.img)
         tmpFile = StringIO.StringIO()
         jpg.save(tmpFile,'JPEG')
 
@@ -32,10 +51,10 @@ class CamHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write( tmpFile.getvalue() )
         
-        #time.sleep(1/frameDataRef[0].fps)
+        #time.sleep(1/fdrRef[0].fps)
 
-        frameData.countWeb = frameData.countWeb + 1
-        frameData.SetStatus(EnumStatus.web_end)
+        fdr.countWeb = fdr.countWeb + 1
+        fdr.SetStatus(EnumStatus.web_end)
 
     def do_GET(self):
 

@@ -72,7 +72,7 @@ class frameData():
         self.img = None
         self.status = EnumStatus.empty
 
-    def SetStatus( self, newStatus):
+    def SetStatus_WithDrawImgThread( self, newStatus):
         self.x_lock.acquire()
 
         ret = 0
@@ -111,7 +111,37 @@ class frameData():
 
         self.x_lock.release()
         return ret
+
+
         
+    def SetStatus( self, newStatus):
+        self.x_lock.acquire()
+
+        ret = 0
+        if newStatus == EnumStatus.calc_beg:
+            if self.status == EnumStatus.empty or self.status == EnumStatus.calc_beg or self.status == EnumStatus.calc_end:
+                self.status = newStatus
+                ret = self.nr
+
+        elif newStatus == EnumStatus.calc_end:
+            if self.status == EnumStatus.calc_beg:
+                self.status = newStatus
+                frameData.countCalc = frameData.countCalc + 1
+                ret = self.nr
+
+        elif newStatus == EnumStatus.web_beg:
+            if self.status == EnumStatus.calc_end:
+                self.status = newStatus
+                ret = self.nr
+
+        elif newStatus == EnumStatus.web_end:
+            if self.status == EnumStatus.web_beg:
+                self.status = EnumStatus.empty
+                frameData.countWeb = frameData.countWeb + 1
+                ret = self.nr
+
+        self.x_lock.release()
+        return ret
 
 
 class ImageProcessor():
